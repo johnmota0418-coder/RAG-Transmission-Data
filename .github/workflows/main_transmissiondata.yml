@@ -63,4 +63,4 @@ jobs:
         with:
           app-name: 'TransmissionData'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_5AB3D4CFE51C446D9A9E3C32F4A9FCB6 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_875AD2CDFFB1466BBBD02C7CCA334C1A }}
