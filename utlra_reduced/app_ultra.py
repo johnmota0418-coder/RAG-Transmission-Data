@@ -17,11 +17,26 @@ import tempfile
 request_semaphore = asyncio.Semaphore(2)  # Max 2 concurrent requests
 
 app = FastAPI(title="Clarity Grid Chatbot - Ultra-Reduced Dataset (16,737 Lines) - Azure Blob Storage")
-templates = Jinja2Templates(directory="../templates")
+
+# Template directory configuration for Azure deployment
+template_dir = os.path.join(os.path.dirname(__file__), "../templates")
+if not os.path.exists(template_dir):
+    # Fallback for Azure deployment where templates might be in same directory
+    template_dir = os.path.join(os.path.dirname(__file__), "templates")
+    if not os.path.exists(template_dir):
+        # Create a minimal templates directory if none exists
+        os.makedirs(template_dir, exist_ok=True)
+
+templates = Jinja2Templates(directory=template_dir)
 
 # Configure Gemini AI
-api_key = os.getenv("GOOGLE_AI_API_KEY", "AIzaSyDu_A4_boYS532-NDub0lXnXKjFEXDB_jQ")
-genai.configure(api_key=api_key)
+api_key = os.getenv("GOOGLE_AI_API_KEY")
+if not api_key:
+    print("❌ WARNING: GOOGLE_AI_API_KEY environment variable not set!")
+    print("   Please set this in Azure App Service Configuration")
+else:
+    genai.configure(api_key=api_key)
+    print("✅ Google AI API key configured successfully")
 
 # Azure Blob Storage URLs for ultra-reduced dataset (16,737 records - 20% of original)
 FAISS_INDEX_URL = "https://itse9cac.blob.core.windows.net/public/ultra_reduced_electrical_grid_index.faiss"
