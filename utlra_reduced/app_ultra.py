@@ -5,9 +5,14 @@ import os
 import json
 import numpy as np
 import google.generativeai as genai
+import asyncio
+import gc
 
 # We will lazy-load heavy ML libraries (faiss, sentence_transformers) when needed
 # to reduce memory usage at startup on small hosts (e.g. Render free instances).
+
+# Global semaphore to limit concurrent requests
+request_semaphore = asyncio.Semaphore(2)  # Max 2 concurrent requests
 
 app = FastAPI(title="Clarity Grid Chatbot - Ultra-Reduced Dataset (16,737 Lines)")
 templates = Jinja2Templates(directory="../templates")
@@ -48,8 +53,8 @@ def ensure_rag_loaded():
         import gc
 
         # Load embedding model with memory optimization
-        print("🧠 Loading lightweight embedding model...")
-        embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device='cpu')
+        print("🧠 Loading ultra-lightweight embedding model...")
+        embedding_model = SentenceTransformer('paraphrase-MiniLM-L3-v2', device='cpu')  # Much smaller model
         # Force garbage collection after model loading
         gc.collect()
         print("✅ FREE embedding model loaded")
@@ -162,15 +167,19 @@ async def home(request: Request):
 
 @app.post("/")
 async def chat(request: Request, query: str = Form(...)):
-    print(f"📝 Received query: {query}")
-    try:
-        answer = generate_ai_answer(query)
-        print(f"✅ Generated answer: {len(answer)} characters")
-        return templates.TemplateResponse("index.html", {"request": request, "answer": answer, "query": query})
-    except Exception as e:
-        error_msg = f"Error generating response: {str(e)}"
-        print(f"❌ Error: {error_msg}")
-        return templates.TemplateResponse("index.html", {"request": request, "answer": error_msg, "query": query})
+    async with request_semaphore:  # Limit concurrent requests
+        print(f"📝 Received query: {query}")
+        try:
+            answer = generate_ai_answer(query)
+            print(f"✅ Generated answer: {len(answer)} characters")
+            # Force cleanup after each request
+            gc.collect()
+            return templates.TemplateResponse("index.html", {"request": request, "answer": answer, "query": query})
+        except Exception as e:
+            error_msg = f"Error generating response: {str(e)}"
+            print(f"❌ Error: {error_msg}")
+            gc.collect()
+            return templates.TemplateResponse("index.html", {"request": request, "answer": error_msg, "query": query})
 
 @app.get("/health")
 async def health():
