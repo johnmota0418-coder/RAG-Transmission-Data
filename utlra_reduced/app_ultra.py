@@ -45,9 +45,13 @@ def ensure_rag_loaded():
         # Local imports to avoid heavy imports at module import time
         import faiss
         from sentence_transformers import SentenceTransformer
+        import gc
 
-        # Load embedding model
-        embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        # Load embedding model with memory optimization
+        print("🧠 Loading lightweight embedding model...")
+        embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device='cpu')
+        # Force garbage collection after model loading
+        gc.collect()
         print("✅ FREE embedding model loaded")
 
         # Check files
@@ -112,6 +116,7 @@ Please provide a clear, informative answer based on the context provided. If the
 
 def retrieve_documents(query, k=5):
     """Retrieve relevant documents using FAISS similarity search with FREE embeddings"""
+    import gc
     # Ensure heavy resources are loaded on first use
     ensure_rag_loaded()
     if not RAG_AVAILABLE:
@@ -140,6 +145,11 @@ def retrieve_documents(query, k=5):
                 relevant_docs.append(doc['content'])
         
         print(f"✅ Retrieved {len(relevant_docs)} relevant documents")
+        
+        # Clean up memory after search
+        del query_embedding, query_vec, distances, indices
+        gc.collect()
+        
         return relevant_docs
         
     except Exception as e:
