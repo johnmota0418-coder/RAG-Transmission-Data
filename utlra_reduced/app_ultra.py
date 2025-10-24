@@ -7,6 +7,8 @@ import numpy as np
 import google.generativeai as genai
 import asyncio
 import gc
+import aiohttp
+import tempfile
 
 # We will lazy-load heavy ML libraries (faiss, sentence_transformers) when needed
 # to reduce memory usage at startup on small hosts (e.g. Render free instances).
@@ -14,16 +16,20 @@ import gc
 # Global semaphore to limit concurrent requests
 request_semaphore = asyncio.Semaphore(2)  # Max 2 concurrent requests
 
-app = FastAPI(title="Clarity Grid Chatbot - Ultra-Reduced Dataset (16,737 Lines)")
+app = FastAPI(title="Clarity Grid Chatbot - Ultra-Reduced Dataset (16,737 Lines) - Azure Blob Storage")
 templates = Jinja2Templates(directory="../templates")
 
 # Configure Gemini AI
 api_key = os.getenv("GOOGLE_AI_API_KEY", "AIzaSyDu_A4_boYS532-NDub0lXnXKjFEXDB_jQ")
 genai.configure(api_key=api_key)
 
-# Local file paths for ultra-reduced dataset (16,737 records - 20% of original)
-FAISS_INDEX_PATH = "ultra_reduced_electrical_grid_index.faiss"
-METADATA_PATH = "ultra_reduced_electrical_grid_metadata.json"
+# Azure Blob Storage URLs for ultra-reduced dataset (16,737 records - 20% of original)
+FAISS_INDEX_URL = "https://itse9cac.blob.core.windows.net/public/ultra_reduced_electrical_grid_index.faiss"
+METADATA_URL = "https://itse9cac.blob.core.windows.net/public/ultra_reduced_electrical_grid_metadata.json"
+
+# Temporary file paths (will be downloaded to temp directory)
+FAISS_INDEX_PATH = None
+METADATA_PATH = None
 
 # We'll defer loading of the embedding model, FAISS index and metadata until
 # they're required. This significantly reduces memory used during the build
@@ -35,18 +41,34 @@ index = None
 texts = []
 RAG_AVAILABLE = False
 
-def ensure_rag_loaded():
+async def download_file_from_url(url: str, local_path: str):
+    """Download a file from URL to local temporary path"""
+    print(f"📥 Downloading {url}...")
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                with open(local_path, 'wb') as f:
+                    async for chunk in response.content.iter_chunked(8192):
+                        f.write(chunk)
+                print(f"✅ Downloaded to {local_path}")
+                return True
+            else:
+                print(f"❌ Failed to download {url}: HTTP {response.status}")
+                return False
+
+async def ensure_rag_loaded():
     """Load FAISS index, metadata, and embedding model on first use.
+    Downloads files from Azure Blob Storage to temporary directory.
 
     This function imports heavy libraries locally to avoid loading them at
     process start. Call this in `retrieve_documents` before running searches.
     """
-    global embedding_model, index, texts, RAG_AVAILABLE
+    global embedding_model, index, texts, RAG_AVAILABLE, FAISS_INDEX_PATH, METADATA_PATH
     if RAG_AVAILABLE:
         return
 
     try:
-        print("📥 Lazy-loading embedding model and FAISS index...")
+        print("📥 Lazy-loading embedding model and FAISS index from Azure Blob Storage...")
         # Local imports to avoid heavy imports at module import time
         import faiss
         from sentence_transformers import SentenceTransformer
@@ -59,13 +81,30 @@ def ensure_rag_loaded():
         gc.collect()
         print("✅ FREE embedding model loaded")
 
-        # Check files
+        # Create temporary files for downloaded data
+        temp_dir = tempfile.gettempdir()
+        FAISS_INDEX_PATH = os.path.join(temp_dir, "ultra_reduced_electrical_grid_index.faiss")
+        METADATA_PATH = os.path.join(temp_dir, "ultra_reduced_electrical_grid_metadata.json")
+
+        # Download files from Azure Blob Storage if not already cached
         if not os.path.exists(FAISS_INDEX_PATH):
-            raise FileNotFoundError(f"FAISS index file not found: {FAISS_INDEX_PATH}")
+            print("📥 Downloading FAISS index from Azure Blob Storage...")
+            success = await download_file_from_url(FAISS_INDEX_URL, FAISS_INDEX_PATH)
+            if not success:
+                raise Exception("Failed to download FAISS index from blob storage")
+        else:
+            print("✅ Using cached FAISS index")
+
         if not os.path.exists(METADATA_PATH):
-            raise FileNotFoundError(f"Metadata file not found: {METADATA_PATH}")
+            print("📥 Downloading metadata from Azure Blob Storage...")
+            success = await download_file_from_url(METADATA_URL, METADATA_PATH)
+            if not success:
+                raise Exception("Failed to download metadata from blob storage")
+        else:
+            print("✅ Using cached metadata")
 
         # Load FAISS index and metadata
+        print("📚 Loading FAISS index and metadata...")
         index = faiss.read_index(FAISS_INDEX_PATH)
         with open(METADATA_PATH, "r", encoding="utf-8") as f:
             texts = json.load(f)
@@ -73,23 +112,24 @@ def ensure_rag_loaded():
         RAG_AVAILABLE = True
         print(f"✅ RAG system loaded: {len(texts):,} electrical transmission lines indexed (20% ultra-optimized dataset)")
         print(f"📊 FAISS index contains {index.ntotal:,} vectors")
+        print("🗂️  Files loaded from Azure Blob Storage and cached locally")
 
     except Exception as e:
         RAG_AVAILABLE = False
         index = None
         texts = []
         print(f"❌ RAG system not available after lazy load: {e}")
-        print("Please ensure the following files are in this directory:")
-        print("- ultra_reduced_electrical_grid_index.faiss")
-        print("- ultra_reduced_electrical_grid_metadata.json")
+        print("Please ensure Azure Blob Storage URLs are accessible:")
+        print(f"- {FAISS_INDEX_URL}")
+        print(f"- {METADATA_URL}")
 
-def generate_ai_answer(query):
+async def generate_ai_answer(query):
     """Generate answer using Gemini AI with RAG (if available)"""
     try:
         model = genai.GenerativeModel('gemini-2.5-flash-lite')
         
         # Try to retrieve relevant documents
-        retrieved_docs = retrieve_documents(query)
+        retrieved_docs = await retrieve_documents(query)
         
         if retrieved_docs and RAG_AVAILABLE:
             # RAG mode: Use retrieved documents as context
@@ -119,11 +159,11 @@ Please provide a clear, informative answer based on the context provided. If the
     except Exception as e:
         return f"Sorry, I encountered an error: {str(e)}"
 
-def retrieve_documents(query, k=5):
+async def retrieve_documents(query, k=5):
     """Retrieve relevant documents using FAISS similarity search with FREE embeddings"""
     import gc
     # Ensure heavy resources are loaded on first use
-    ensure_rag_loaded()
+    await ensure_rag_loaded()
     if not RAG_AVAILABLE:
         return []
     
@@ -170,7 +210,7 @@ async def chat(request: Request, query: str = Form(...)):
     async with request_semaphore:  # Limit concurrent requests
         print(f"📝 Received query: {query}")
         try:
-            answer = generate_ai_answer(query)
+            answer = await generate_ai_answer(query)
             print(f"✅ Generated answer: {len(answer)} characters")
             # Force cleanup after each request
             gc.collect()
