@@ -4,9 +4,10 @@ from fastapi.templating import Jinja2Templates
 import os
 import json
 import numpy as np
-import faiss
 import google.generativeai as genai
-from sentence_transformers import SentenceTransformer
+
+# We will lazy-load heavy ML libraries (faiss, sentence_transformers) when needed
+# to reduce memory usage at startup on small hosts (e.g. Render free instances).
 
 app = FastAPI(title="Clarity Grid Chatbot - Reduced Dataset (41,843 Lines)")
 templates = Jinja2Templates(directory="templates")
@@ -19,40 +20,59 @@ genai.configure(api_key=api_key)
 FAISS_INDEX_PATH = "reduced_electrical_grid_index.faiss"
 METADATA_PATH = "reduced_electrical_grid_metadata.json"
 
-# Load FREE sentence transformer model for query embeddings
-print("📥 Loading FREE embedding model for queries...")
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-print("✅ FREE embedding model loaded")
+# We'll defer loading of the embedding model, FAISS index and metadata until
+# they're required. This significantly reduces memory used during the build
+# or initial startup on low-memory hosts.
 
-# Load FAISS index and metadata from local files
-try:
-    print("📂 Loading REDUCED dataset from local files...")
-    
-    # Check if files exist
-    if not os.path.exists(FAISS_INDEX_PATH):
-        raise FileNotFoundError(f"FAISS index file not found: {FAISS_INDEX_PATH}")
-    if not os.path.exists(METADATA_PATH):
-        raise FileNotFoundError(f"Metadata file not found: {METADATA_PATH}")
-    
-    # Load FAISS index
-    index = faiss.read_index(FAISS_INDEX_PATH)
-    
-    # Load metadata
-    with open(METADATA_PATH, "r", encoding="utf-8") as f:
-        texts = json.load(f)
-    
-    RAG_AVAILABLE = True
-    print(f"✅ RAG system loaded: {len(texts):,} electrical transmission lines indexed (50% optimized dataset)")
-    print(f"📊 FAISS index contains {index.ntotal:,} vectors")
-    
-except Exception as e:
-    RAG_AVAILABLE = False
-    index = None
-    texts = []
-    print(f"❌ RAG system not available: {e}")
-    print("Please ensure the following files are in this directory:")
-    print("- reduced_electrical_grid_index.faiss")
-    print("- reduced_electrical_grid_metadata.json")
+# Globals populated by ensure_rag_loaded()
+embedding_model = None
+index = None
+texts = []
+RAG_AVAILABLE = False
+
+def ensure_rag_loaded():
+    """Load FAISS index, metadata, and embedding model on first use.
+
+    This function imports heavy libraries locally to avoid loading them at
+    process start. Call this in `retrieve_documents` before running searches.
+    """
+    global embedding_model, index, texts, RAG_AVAILABLE
+    if RAG_AVAILABLE:
+        return
+
+    try:
+        print("📥 Lazy-loading embedding model and FAISS index...")
+        # Local imports to avoid heavy imports at module import time
+        import faiss
+        from sentence_transformers import SentenceTransformer
+
+        # Load embedding model
+        embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        print("✅ FREE embedding model loaded")
+
+        # Check files
+        if not os.path.exists(FAISS_INDEX_PATH):
+            raise FileNotFoundError(f"FAISS index file not found: {FAISS_INDEX_PATH}")
+        if not os.path.exists(METADATA_PATH):
+            raise FileNotFoundError(f"Metadata file not found: {METADATA_PATH}")
+
+        # Load FAISS index and metadata
+        index = faiss.read_index(FAISS_INDEX_PATH)
+        with open(METADATA_PATH, "r", encoding="utf-8") as f:
+            texts = json.load(f)
+
+        RAG_AVAILABLE = True
+        print(f"✅ RAG system loaded: {len(texts):,} electrical transmission lines indexed (50% optimized dataset)")
+        print(f"📊 FAISS index contains {index.ntotal:,} vectors")
+
+    except Exception as e:
+        RAG_AVAILABLE = False
+        index = None
+        texts = []
+        print(f"❌ RAG system not available after lazy load: {e}")
+        print("Please ensure the following files are in this directory:")
+        print("- reduced_electrical_grid_index.faiss")
+        print("- reduced_electrical_grid_metadata.json")
 
 def generate_ai_answer(query):
     """Generate answer using Gemini AI with RAG (if available)"""
@@ -92,6 +112,8 @@ Please provide a clear, informative answer based on the context provided. If the
 
 def retrieve_documents(query, k=5):
     """Retrieve relevant documents using FAISS similarity search with FREE embeddings"""
+    # Ensure heavy resources are loaded on first use
+    ensure_rag_loaded()
     if not RAG_AVAILABLE:
         return []
     
