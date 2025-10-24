@@ -42,14 +42,26 @@ texts = []
 RAG_AVAILABLE = False
 
 async def download_file_from_url(url: str, local_path: str):
-    """Download a file from URL to local temporary path"""
+    """Download a file from URL to local temporary path with memory optimization"""
     print(f"📥 Downloading {url}...")
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=300)  # 5 minute timeout
+    
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(url) as response:
             if response.status == 200:
+                file_size = int(response.headers.get('content-length', 0))
+                print(f"📊 File size: {file_size / (1024*1024):.2f} MB")
+                
                 with open(local_path, 'wb') as f:
-                    async for chunk in response.content.iter_chunked(8192):
+                    downloaded = 0
+                    async for chunk in response.content.iter_chunked(1024 * 1024):  # 1MB chunks
                         f.write(chunk)
+                        downloaded += len(chunk)
+                        if file_size > 0:
+                            progress = (downloaded / file_size) * 100
+                            if downloaded % (5 * 1024 * 1024) == 0:  # Log every 5MB
+                                print(f"📥 Progress: {progress:.1f}% ({downloaded / (1024*1024):.1f}MB)")
+                
                 print(f"✅ Downloaded to {local_path}")
                 return True
             else:
@@ -92,6 +104,8 @@ async def ensure_rag_loaded():
             success = await download_file_from_url(FAISS_INDEX_URL, FAISS_INDEX_PATH)
             if not success:
                 raise Exception("Failed to download FAISS index from blob storage")
+            # Force garbage collection after download
+            gc.collect()
         else:
             print("✅ Using cached FAISS index")
 
@@ -100,6 +114,8 @@ async def ensure_rag_loaded():
             success = await download_file_from_url(METADATA_URL, METADATA_PATH)
             if not success:
                 raise Exception("Failed to download metadata from blob storage")
+            # Force garbage collection after download
+            gc.collect()
         else:
             print("✅ Using cached metadata")
 
@@ -230,6 +246,24 @@ async def health():
         "dataset_type": "ultra_reduced_dataset",
         "transmission_lines": len(texts) if RAG_AVAILABLE else 0
     }
+
+@app.get("/warmup")
+async def warmup():
+    """Endpoint to pre-load the RAG system - call this to download blob storage files"""
+    try:
+        await ensure_rag_loaded()
+        return {
+            "status": "warmed_up",
+            "rag_available": RAG_AVAILABLE,
+            "documents_indexed": len(texts) if RAG_AVAILABLE else 0,
+            "message": "RAG system loaded and ready"
+        }
+    except Exception as e:
+        return {
+            "status": "warmup_failed",
+            "error": str(e),
+            "message": "Failed to load RAG system"
+        }
 
 @app.get("/info")
 async def info():
