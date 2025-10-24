@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FREE Electrical Grid Assistant - 83K+ Real Lines</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .header .subtitle {
+            color: #7f8c8d;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+        }
+        
+        .stats {
+            background: linear-gradient(45deg, #1e3c72, #2a5298);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin-top: 15px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 1.8em;
+            font-weight: bold;
+            display: block;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        
+        .chat-form {
+            margin-bottom: 30px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .query-input {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .query-input:focus {
+            border-color: #667eea;
+        }
+        
+        .submit-btn {
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .suggestions {
+            margin-bottom: 20px;
+        }
+        
+        .suggestions h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .suggestion-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .chip {
+            background: #ecf0f1;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: #2c3e50;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .chip:hover {
+            background: #d5dbdb;
+        }
+        
+        .answer-section {
+            margin-top: 30px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border-left: 5px solid #667eea;
+        }
+        
+        .answer-section h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .answer-content {
+            color: #34495e;
+            line-height: 1.6;
+            font-size: 16px;
+        }
+        
+        .free-badge {
+            background: linear-gradient(45deg, #27ae60, #2ecc71);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: bold;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #667eea;
+            font-style: italic;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ FREE Electrical Grid Assistant <span class="free-badge">FREE</span></h1>
+            <p class="subtitle">83,686 Real Transmission Lines • Zero API Costs • Powered by Open Source</p>
+        </div>
+        
+        <div class="stats">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-number">83,686</span>
+                    <span class="stat-label">Transmission Lines</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">$0.00</span>
+                    <span class="stat-label">Total Cost</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">179MB</span>
+                    <span class="stat-label">Data Size</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">384D</span>
+                    <span class="stat-label">Embeddings</span>
+                </div>
+            </div>
+        </div>
+        
+        <form method="post" action="/" class="chat-form">
+            <div class="input-group">
+                <input type="text" name="query" class="query-input" 
+                       placeholder="Ask about real electrical transmission lines (83K+ lines, completely FREE search)..."
+                       required>
+                <button type="submit" class="submit-btn">🔍 Search</button>
+            </div>
+        </form>
+        
+        <div class="suggestions">
+            <h3>💡 Try these sample queries:</h3>
+            <div class="suggestion-chips">
+                <span class="chip" onclick="fillQuery('Show me high voltage transmission lines')">High voltage lines</span>
+                <span class="chip" onclick="fillQuery('Find lines owned by Pacific Gas & Electric')">PG&E lines</span>
+                <span class="chip" onclick="fillQuery('What voltage levels are available?')">Voltage levels</span>
+                <span class="chip" onclick="fillQuery('Tell me about 345kV transmission lines')">345kV lines</span>
+                <span class="chip" onclick="fillQuery('Show transmission lines in Texas')">Texas lines</span>
+                <span class="chip" onclick="fillQuery('Find overhead AC transmission lines')">AC overhead</span>
+            </div>
+        </div>
+        
+        {% if answer %}
+        <div class="answer-section">
+            <h3>🔍 Search Results:</h3>
+            <div class="answer-content">{{ answer | safe }}</div>
+        </div>
+        {% endif %}
+        
+        <div class="footer">
+            <p>🌱 Powered by FREE open-source sentence-transformers • No API costs • Real electrical grid data</p>
+            <p>Data: 84,686 transmission lines processed with zero-cost embeddings</p>
+        </div>
+    </div>
+    
+    <script>
+        function fillQuery(query) {
+            document.querySelector('.query-input').value = query;
+        }
+        
+        // Wait for DOM to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-focus on input
+            const queryInput = document.querySelector('.query-input');
+            if (queryInput) {
+                queryInput.focus();
+            }
+            
+            // Show loading when form is submitted
+            const form = document.querySelector('.chat-form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    // Don't prevent default - let form submit normally
+                    const answerSection = document.querySelector('.answer-section');
+                    if (answerSection) {
+                        answerSection.innerHTML = '<div class="loading">🔍 Searching through 83,686 transmission lines...</div>';
+                    } else {
+                        const container = document.querySelector('.container');
+                        const newSection = document.createElement('div');
+                        newSection.className = 'answer-section';
+                        newSection.innerHTML = '<div class="loading">🔍 Searching through 83,686 transmission lines...</div>';
+                        container.appendChild(newSection);
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
